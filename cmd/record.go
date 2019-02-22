@@ -1,5 +1,7 @@
+
 package main
 
-type Record struct {
+type Recorder struct {
 	ID string
+	Amount int
 }

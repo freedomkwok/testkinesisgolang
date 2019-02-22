@@ -8,9 +8,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
-	"github.com/pkg/errors"
 	XID "github.com/rs/xid"
 	"github.com/sirupsen/logrus"
+	"encoding/json"
+	"math/rand"
+	"strconv"
 )
 
 func main() {
@@ -18,21 +20,19 @@ func main() {
 }
 
 func startImport() {
-	awsRegionID := "us-west-2"
-	awsSession, err := session.NewSession(&aws.Config{Region: &awsRegionID})
-	if err != nil {
-		panic(errors.Errorf("Fail To Retrieve Section"))
-	}
-
-	streamName := "teststream"
+	awsRegionID := "us-west-2" 
 	log := logrus.New()
-
-	client := kinesis.New(session.New(aws.NewConfig()))
+	
+	client := kinesis.New(session.New(&aws.Config{Region: &awsRegionID}))
 	pr := producer.New(&producer.Config{
-		StreamName:   "test",
+		StreamName:   "teststream2",
 		BacklogCount: 2000,
 		Client:       client,
+		BatchCount: 10,
+		AggregateBatchCount: 10,
 	})
+
+
 	pr.Start()
 
 	// Handle failures
@@ -43,10 +43,16 @@ func startImport() {
 		}
 	}()
 
+
 	go func() {
-		for i := 0; i < 5000; i++ {
-			partitionKey := fmt.Sprintf("%v_%v", XID.New().String(), "1")
-			err := pr.Put([]byte("foo"), partitionKey)
+		for i := 0; i < 5000; i++ { 
+			r := new(Recorder)
+			r.ID = fmt.Sprintf("%v_%v", XID.New().String(), strconv.Itoa(i))
+			r.Amount = rand.Intn(20)
+
+			b , _ := json.Marshal(r)
+			
+			err := pr.Put(b, fmt.Sprintf("%v", rand.Intn(4)))
 
 			if err != nil {
 				log.WithError(err).Fatal("error producing")
@@ -54,6 +60,6 @@ func startImport() {
 		}
 	}()
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(30 * time.Second)
 	pr.Stop()
 }
