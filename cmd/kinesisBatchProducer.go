@@ -3,9 +3,6 @@ package main
 import (
 	"time"
 
-	Kinesis "github.com/sendgridlabs/go-kinesis"
-	"github.com/sendgridlabs/go-kinesis/batchproducer"
-
 	Log "github.com/sirupsen/logrus"
 )
 

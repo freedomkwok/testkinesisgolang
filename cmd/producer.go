@@ -1,21 +1,20 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
+	"time"
 
+	producer "github.com/a8m/kinesis-producer"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/kinesis"
 	"github.com/pkg/errors"
 	XID "github.com/rs/xid"
-	Log "github.com/sirupsen/logrus"
-	Lumberjack "gopkg.in/natefinch/lumberjack.v2"
+	"github.com/sirupsen/logrus"
 )
 
-var S3_LOG *Log.Logger
-
 func main() {
-
+	startImport()
 }
 
 func startImport() {
@@ -26,29 +25,35 @@ func startImport() {
 	}
 
 	streamName := "teststream"
-	S3_LOG = Log.New()
-	S3_LOG.Out = &Lumberjack.Logger{
-		Filename: "logfile",
-		MaxSize:  20000,
-		MaxAge:   20000,
-	}
+	log := logrus.New()
 
-	println(awsSession, streamName)
-	kinesisProducer := new(KinesisProducer)
-	kinesisProducer.NewKinesisProducer(awsRegionID, streamName, S3_LOG)
+	client := kinesis.New(session.New(aws.NewConfig()))
+	pr := producer.New(&producer.Config{
+		StreamName:   "test",
+		BacklogCount: 2000,
+		Client:       client,
+	})
+	pr.Start()
 
-	(*kinesisProducer.DefaultProducer).Start()
-
-	for i := 0; i < 1000; i++ {
-		partitionKey := fmt.Sprintf("%v_%v", XID.New().String(), "1")
-		record := new(Record)
-		record.ID = partitionKey
-		dataByte, err := json.Marshal(record)
-		if err != nil {
-			println("error data: ", err)
-		} else {
-			println("Add data: ", record)
-			kinesisProducer.Add(partitionKey, dataByte)
+	// Handle failures
+	go func() {
+		for r := range pr.NotifyFailures() {
+			// r contains `Data`, `PartitionKey` and `Error()`
+			log.Error(r)
 		}
-	}
+	}()
+
+	go func() {
+		for i := 0; i < 5000; i++ {
+			partitionKey := fmt.Sprintf("%v_%v", XID.New().String(), "1")
+			err := pr.Put([]byte("foo"), partitionKey)
+
+			if err != nil {
+				log.WithError(err).Fatal("error producing")
+			}
+		}
+	}()
+
+	time.Sleep(10 * time.Second)
+	pr.Stop()
 }
