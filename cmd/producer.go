@@ -25,7 +25,7 @@ func startImport() {
 	
 	client := kinesis.New(session.New(&aws.Config{Region: &awsRegionID}))
 	pr := producer.New(&producer.Config{
-		StreamName:   "teststream2",
+		StreamName:   "teststream2",//test
 		BacklogCount: 2000,
 		Client:       client,
 		BatchCount: 10,
